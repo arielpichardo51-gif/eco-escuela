@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { KeyboardAwareScrollViewCompat } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
@@ -57,7 +57,7 @@ export default function NuevaObraScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <KeyboardAwareScrollViewCompat
+      <KeyboardAwareScrollView
         bottomOffset={20}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
@@ -145,7 +145,7 @@ export default function NuevaObraScreen() {
           <Feather name="check" size={20} color="#fff" />
           <Text style={styles.saveBtnText}>Guardar obra</Text>
         </TouchableOpacity>
-      </KeyboardAwareScrollViewCompat>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
