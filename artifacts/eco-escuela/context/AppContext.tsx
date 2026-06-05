@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import React, {
   createContext,
   useCallback,
@@ -6,6 +7,9 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { Platform } from "react-native";
+
+export type Role = "student" | "teacher" | null;
 
 export interface ObraLocal {
   localId: string;
@@ -15,6 +19,7 @@ export interface ObraLocal {
   category: string;
   hours: number;
   date: string;
+  photoUri: string | null;
   synced: boolean;
   serverId: string | null;
   status: "local" | "pending" | "approved" | "rejected";
@@ -29,6 +34,9 @@ export interface PointsHistory {
 }
 
 interface AppContextType {
+  role: Role;
+  setRole: (role: Role) => void;
+  logout: () => void;
   studentName: string;
   setStudentName: (name: string) => void;
   totalPoints: number;
@@ -47,44 +55,97 @@ interface AppContextType {
   ) => void;
   markObraSynced: (localId: string, serverId: string) => void;
   pendingObras: ObraLocal[];
+  pushToken: string | null;
+  setPushToken: (token: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const STORAGE_KEYS = {
+const KEYS = {
+  role: "@ecoescuela:role",
   studentName: "@ecoescuela:studentName",
   totalPoints: "@ecoescuela:totalPoints",
   history: "@ecoescuela:history",
   obras: "@ecoescuela:obras",
+  pushToken: "@ecoescuela:pushToken",
 };
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowList: true,
+    shouldShowAlert: true,
+  }),
+});
+
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  if (Platform.OS === "web") return null;
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  let finalStatus = existing;
+  if (existing !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== "granted") return null;
+  try {
+    const token = (await Notifications.getExpoPushTokenAsync()).data;
+    return token;
+  } catch {
+    return null;
+  }
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [studentName, setStudentNameState] = useState<string>("");
-  const [totalPoints, setTotalPoints] = useState<number>(0);
+  const [role, setRoleState] = useState<Role>(null);
+  const [studentName, setStudentNameState] = useState("");
+  const [totalPoints, setTotalPoints] = useState(0);
   const [pointsHistory, setPointsHistory] = useState<PointsHistory[]>([]);
   const [obras, setObras] = useState<ObraLocal[]>([]);
+  const [pushToken, setPushTokenState] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadData() {
+    async function load() {
       try {
-        const [name, pts, hist, obs] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.studentName),
-          AsyncStorage.getItem(STORAGE_KEYS.totalPoints),
-          AsyncStorage.getItem(STORAGE_KEYS.history),
-          AsyncStorage.getItem(STORAGE_KEYS.obras),
+        const [r, name, pts, hist, obs, tok] = await Promise.all([
+          AsyncStorage.getItem(KEYS.role),
+          AsyncStorage.getItem(KEYS.studentName),
+          AsyncStorage.getItem(KEYS.totalPoints),
+          AsyncStorage.getItem(KEYS.history),
+          AsyncStorage.getItem(KEYS.obras),
+          AsyncStorage.getItem(KEYS.pushToken),
         ]);
+        if (r) setRoleState(r as Role);
         if (name) setStudentNameState(name);
         if (pts) setTotalPoints(JSON.parse(pts));
         if (hist) setPointsHistory(JSON.parse(hist));
         if (obs) setObras(JSON.parse(obs));
+        if (tok) setPushTokenState(tok);
       } catch {}
     }
-    loadData();
+    load();
+  }, []);
+
+  const setRole = useCallback((r: Role) => {
+    setRoleState(r);
+    if (r) AsyncStorage.setItem(KEYS.role, r).catch(() => {});
+    else AsyncStorage.removeItem(KEYS.role).catch(() => {});
+  }, []);
+
+  const logout = useCallback(() => {
+    setRoleState(null);
+    AsyncStorage.removeItem(KEYS.role).catch(() => {});
   }, []);
 
   const setStudentName = useCallback((name: string) => {
     setStudentNameState(name);
-    AsyncStorage.setItem(STORAGE_KEYS.studentName, name).catch(() => {});
+    AsyncStorage.setItem(KEYS.studentName, name).catch(() => {});
+  }, []);
+
+  const setPushToken = useCallback((token: string | null) => {
+    setPushTokenState(token);
+    if (token) AsyncStorage.setItem(KEYS.pushToken, token).catch(() => {});
+    else AsyncStorage.removeItem(KEYS.pushToken).catch(() => {});
   }, []);
 
   const addPoints = useCallback((pts: number, label: string) => {
@@ -96,12 +157,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     setTotalPoints((prev) => {
       const next = prev + pts;
-      AsyncStorage.setItem(STORAGE_KEYS.totalPoints, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(KEYS.totalPoints, JSON.stringify(next)).catch(() => {});
       return next;
     });
     setPointsHistory((prev) => {
       const next = [entry, ...prev];
-      AsyncStorage.setItem(STORAGE_KEYS.history, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(KEYS.history, JSON.stringify(next)).catch(() => {});
       return next;
     });
   }, []);
@@ -109,8 +170,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const resetPoints = useCallback(() => {
     setTotalPoints(0);
     setPointsHistory([]);
-    AsyncStorage.setItem(STORAGE_KEYS.totalPoints, "0").catch(() => {});
-    AsyncStorage.setItem(STORAGE_KEYS.history, "[]").catch(() => {});
+    AsyncStorage.setItem(KEYS.totalPoints, "0").catch(() => {});
+    AsyncStorage.setItem(KEYS.history, "[]").catch(() => {});
   }, []);
 
   const addObra = useCallback(
@@ -125,7 +186,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       setObras((prev) => {
         const next = [newObra, ...prev];
-        AsyncStorage.setItem(STORAGE_KEYS.obras, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem(KEYS.obras, JSON.stringify(next)).catch(() => {});
         return next;
       });
     },
@@ -139,47 +200,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? { ...o, synced: true, serverId, status: "pending" as const }
           : o
       );
-      AsyncStorage.setItem(STORAGE_KEYS.obras, JSON.stringify(next)).catch(() => {});
+      AsyncStorage.setItem(KEYS.obras, JSON.stringify(next)).catch(() => {});
       return next;
     });
   }, []);
 
   const updateObraFromServer = useCallback(
-    (
-      localId: string,
-      serverId: string,
-      status: ObraLocal["status"],
-      teacherComment: string | null
-    ) => {
+    (localId: string, serverId: string, status: ObraLocal["status"], teacherComment: string | null) => {
       setObras((prev) => {
         const next = prev.map((o) =>
           o.localId === localId || o.serverId === serverId
             ? { ...o, synced: true, serverId, status, teacherComment }
             : o
         );
-        AsyncStorage.setItem(STORAGE_KEYS.obras, JSON.stringify(next)).catch(() => {});
+        AsyncStorage.setItem(KEYS.obras, JSON.stringify(next)).catch(() => {});
         return next;
       });
     },
     []
   );
 
-  const pendingObras = obras.filter((o) => !o.synced);
-
   return (
     <AppContext.Provider
       value={{
-        studentName,
-        setStudentName,
-        totalPoints,
-        addPoints,
-        resetPoints,
-        pointsHistory,
-        obras,
-        addObra,
-        updateObraFromServer,
-        markObraSynced,
-        pendingObras,
+        role, setRole, logout,
+        studentName, setStudentName,
+        totalPoints, addPoints, resetPoints, pointsHistory,
+        obras, addObra, updateObraFromServer, markObraSynced,
+        pendingObras: obras.filter((o) => !o.synced),
+        pushToken, setPushToken,
       }}
     >
       {children}

@@ -27,6 +27,7 @@ export interface Obra {
   category: string;
   hours: number;
   date: string;
+  photo?: string | null;
   status: ObraStatus;
   /** @nullable */
   teacherComment?: string | null;
@@ -43,6 +44,7 @@ export interface ObraInput {
   category: string;
   hours: number;
   date: string;
+  photo?: string | null;
 }
 
 export type ObraReviewStatus = typeof ObraReviewStatus[keyof typeof ObraReviewStatus];
@@ -59,14 +61,16 @@ export interface ObraReview {
   teacherComment?: string | null;
 }
 
+export interface TeacherTokenInput {
+  token: string;
+}
+
+export interface SimpleOk {
+  ok: boolean;
+}
+
 export type ListObrasParams = {
-/**
- * Filter by student name
- */
 studentName?: string;
-/**
- * Filter by status
- */
 status?: ListObrasStatus;
 };
 

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "1780701084600j45tae3yv",
+    "localId": "1780701075319603v3pfky",
+    "studentName": "Aruel Isaac Pichardo Henriquez",
+    "title": "Limpieza",
+    "description": "Limpie el patio o jardín de mi aula",
+    "category": "reciclaje",
+    "hours": 3,
+    "date": "2026-06-05T23:11:15.318Z",
+    "status": "approved",
+    "teacherComment": null,
+    "createdAt": "2026-06-05T23:11:24.600Z",
+    "reviewedAt": "2026-06-05T23:11:34.379Z"
+  },
+  {
+    "id": "1780701084441mro0hpup4",
+    "localId": "1780701078983dferpy7sb",
+    "studentName": "Aruel Isaac Pichardo Henriquez",
+    "title": "Limpieza",
+    "description": "Limpie el patio o jardín de mi aula",
+    "category": "reciclaje",
+    "hours": 3,
+    "date": "2026-06-05T23:11:18.983Z",
+    "status": "approved",
+    "teacherComment": null,
+    "createdAt": "2026-06-05T23:11:24.441Z",
+    "reviewedAt": "2026-06-05T23:19:46.612Z"
+  }
+]

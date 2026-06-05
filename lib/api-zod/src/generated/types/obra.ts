@@ -16,6 +16,7 @@ export interface Obra {
   category: string;
   hours: number;
   date: string;
+  photo?: string | null;
   status: ObraStatus;
   /** @nullable */
   teacherComment?: string | null;

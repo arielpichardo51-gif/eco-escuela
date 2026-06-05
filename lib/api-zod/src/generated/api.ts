@@ -9,7 +9,6 @@ import * as zod from 'zod';
 
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -18,12 +17,11 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Returns all obras (for teacher review)
  * @summary List all obras
  */
 export const ListObrasQueryParams = zod.object({
-  "studentName": zod.coerce.string().optional().describe('Filter by student name'),
-  "status": zod.enum(['pending', 'approved', 'rejected']).optional().describe('Filter by status')
+  "studentName": zod.coerce.string().optional(),
+  "status": zod.enum(['pending', 'approved', 'rejected']).optional()
 })
 
 export const ListObrasResponseItem = zod.object({
@@ -35,6 +33,7 @@ export const ListObrasResponseItem = zod.object({
   "category": zod.string(),
   "hours": zod.number(),
   "date": zod.string(),
+  "photo": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "teacherComment": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -44,7 +43,6 @@ export const ListObrasResponse = zod.array(ListObrasResponseItem)
 
 
 /**
- * Student submits an ecological work to the server
  * @summary Submit an obra ecológica
  */
 export const SubmitObraBody = zod.object({
@@ -54,7 +52,8 @@ export const SubmitObraBody = zod.object({
   "description": zod.string(),
   "category": zod.string(),
   "hours": zod.number(),
-  "date": zod.string()
+  "date": zod.string(),
+  "photo": zod.string().nullish()
 })
 
 
@@ -74,6 +73,7 @@ export const GetObraResponse = zod.object({
   "category": zod.string(),
   "hours": zod.number(),
   "date": zod.string(),
+  "photo": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "teacherComment": zod.string().nullish(),
   "createdAt": zod.string(),
@@ -82,7 +82,6 @@ export const GetObraResponse = zod.object({
 
 
 /**
- * Teacher approves or rejects a student obra
  * @summary Teacher reviews an obra
  */
 export const ReviewObraParams = zod.object({
@@ -103,10 +102,23 @@ export const ReviewObraResponse = zod.object({
   "category": zod.string(),
   "hours": zod.number(),
   "date": zod.string(),
+  "photo": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "teacherComment": zod.string().nullish(),
   "createdAt": zod.string(),
   "reviewedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary Register a teacher push notification token
+ */
+export const SetTeacherTokenBody = zod.object({
+  "token": zod.string()
+})
+
+export const SetTeacherTokenResponse = zod.object({
+  "ok": zod.boolean()
 })
 
 

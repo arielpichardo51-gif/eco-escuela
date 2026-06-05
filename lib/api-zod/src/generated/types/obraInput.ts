@@ -14,4 +14,5 @@ export interface ObraInput {
   category: string;
   hours: number;
   date: string;
+  photo?: string | null;
 }

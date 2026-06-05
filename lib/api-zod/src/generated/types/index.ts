@@ -14,3 +14,5 @@ export * from './obraInput';
 export * from './obraReview';
 export * from './obraReviewStatus';
 export * from './obraStatus';
+export * from './simpleOk';
+export * from './teacherTokenInput';

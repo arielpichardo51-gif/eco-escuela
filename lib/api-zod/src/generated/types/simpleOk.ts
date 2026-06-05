@@ -5,9 +5,7 @@
  * API specification for Eco Escuela
  * OpenAPI spec version: 0.1.0
  */
-import type { ListObrasStatus } from './listObrasStatus';
 
-export type ListObrasParams = {
-studentName?: string;
-status?: ListObrasStatus;
-};
+export interface SimpleOk {
+  ok: boolean;
+}

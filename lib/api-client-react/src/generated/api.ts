@@ -24,7 +24,9 @@ import type {
   ListObrasParams,
   Obra,
   ObraInput,
-  ObraReview
+  ObraReview,
+  SimpleOk,
+  TeacherTokenInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -48,7 +50,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -133,7 +134,6 @@ export const getListObrasUrl = (params?: ListObrasParams,) => {
 }
 
 /**
- * Returns all obras (for teacher review)
  * @summary List all obras
  */
 export const listObras = async (params?: ListObrasParams, options?: RequestInit): Promise<Obra[]> => {
@@ -211,7 +211,6 @@ export const getSubmitObraUrl = () => {
 }
 
 /**
- * Student submits an ecological work to the server
  * @summary Submit an obra ecológica
  */
 export const submitObra = async (obraInput: ObraInput, options?: RequestInit): Promise<Obra> => {
@@ -360,7 +359,6 @@ export const getReviewObraUrl = (id: string,) => {
 }
 
 /**
- * Teacher approves or rejects a student obra
  * @summary Teacher reviews an obra
  */
 export const reviewObra = async (id: string,
@@ -422,5 +420,76 @@ export const useReviewObra = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReviewObraMutationOptions(options));
+    }
+
+export const getSetTeacherTokenUrl = () => {
+
+
+
+
+  return `/api/teacher-tokens`
+}
+
+/**
+ * @summary Register a teacher push notification token
+ */
+export const setTeacherToken = async (teacherTokenInput: TeacherTokenInput, options?: RequestInit): Promise<SimpleOk> => {
+
+  return customFetch<SimpleOk>(getSetTeacherTokenUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      teacherTokenInput,)
+  }
+);}
+
+
+
+
+export const getSetTeacherTokenMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTeacherToken>>, TError,{data: BodyType<TeacherTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setTeacherToken>>, TError,{data: BodyType<TeacherTokenInput>}, TContext> => {
+
+const mutationKey = ['setTeacherToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setTeacherToken>>, {data: BodyType<TeacherTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setTeacherToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetTeacherTokenMutationResult = NonNullable<Awaited<ReturnType<typeof setTeacherToken>>>
+    export type SetTeacherTokenMutationBody = BodyType<TeacherTokenInput>
+    export type SetTeacherTokenMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register a teacher push notification token
+ */
+export const useSetTeacherToken = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setTeacherToken>>, TError,{data: BodyType<TeacherTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setTeacherToken>>,
+        TError,
+        {data: BodyType<TeacherTokenInput>},
+        TContext
+      > => {
+      return useMutation(getSetTeacherTokenMutationOptions(options));
     }
 
