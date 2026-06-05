@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "NW8z4wkucftCEEGjyKAMo"
+uri = "file://artifacts/eco-escuela/assets/images/icon.png"
+type = "image"
+title = "eco-escuela-icon"

@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API specification for Eco Escuela
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: obras
+    description: Obras ecológicas operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,104 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /obras:
+    get:
+      operationId: listObras
+      tags: [obras]
+      summary: List all obras
+      description: Returns all obras (for teacher review)
+      parameters:
+        - in: query
+          name: studentName
+          schema:
+            type: string
+          required: false
+          description: Filter by student name
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+          required: false
+          description: Filter by status
+      responses:
+        "200":
+          description: List of obras
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Obra"
+    post:
+      operationId: submitObra
+      tags: [obras]
+      summary: Submit an obra ecológica
+      description: Student submits an ecological work to the server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObraInput"
+      responses:
+        "201":
+          description: Obra created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Obra"
+
+  /obras/{id}:
+    get:
+      operationId: getObra
+      tags: [obras]
+      summary: Get a single obra
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Obra found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Obra"
+        "404":
+          description: Not found
+
+  /obras/{id}/review:
+    patch:
+      operationId: reviewObra
+      tags: [obras]
+      summary: Teacher reviews an obra
+      description: Teacher approves or rejects a student obra
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObraReview"
+      responses:
+        "200":
+          description: Obra reviewed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Obra"
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +134,79 @@ components:
       required:
         - status
 
+    Obra:
+      type: object
+      properties:
+        id:
+          type: string
+        localId:
+          type: string
+        studentName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        hours:
+          type: number
+        date:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        teacherComment:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        reviewedAt:
+          type: ["string", "null"]
+      required:
+        - id
+        - localId
+        - studentName
+        - title
+        - description
+        - category
+        - hours
+        - date
+        - status
+        - createdAt
+
+    ObraInput:
+      type: object
+      properties:
+        localId:
+          type: string
+        studentName:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        hours:
+          type: number
+        date:
+          type: string
+      required:
+        - localId
+        - studentName
+        - title
+        - description
+        - category
+        - hours
+        - date
+
+    ObraReview:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        teacherComment:
+          type: ["string", "null"]
+      required:
+        - status
