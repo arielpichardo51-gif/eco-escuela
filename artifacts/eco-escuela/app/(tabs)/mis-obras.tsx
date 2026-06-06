@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
 import { Image } from "expo-image";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -226,8 +227,11 @@ const toc = StyleSheet.create({
 function TeacherView() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { logout, pendingObras } = useApp();
+  const { logout } = useApp();
   const [filter, setFilter] = useState<"pending" | "all" | "approved" | "rejected">("pending");
+  const [search, setSearch] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
+  const searchRef = useRef<TextInput>(null);
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : insets.bottom;
@@ -237,7 +241,7 @@ function TeacherView() {
     { query: { staleTime: 10000, refetchInterval: 20000 } }
   );
 
-  // Check for new pending and show local notification
+  // Notify once on mount if there are pending obras
   useEffect(() => {
     if (!obras) return;
     const pending = obras.filter((o) => o.status === "pending");
@@ -252,6 +256,30 @@ function TeacherView() {
       }).catch(() => {});
     }
   }, []);
+
+  // Client-side search filtering
+  const filtered = useMemo(() => {
+    if (!obras) return [];
+    if (!search.trim()) return obras;
+    const q = search.trim().toLowerCase();
+    return obras.filter((o) => o.studentName.toLowerCase().includes(q));
+  }, [obras, search]);
+
+  // Unique student names from current data (for autocomplete suggestions)
+  const studentNames = useMemo(() => {
+    if (!obras) return [];
+    const names = [...new Set(obras.map((o) => o.studentName))].sort();
+    if (!search.trim()) return names;
+    return names.filter((n) => n.toLowerCase().includes(search.trim().toLowerCase()));
+  }, [obras, search]);
+
+  const showSuggestions = searchActive && search.trim().length > 0 && studentNames.length > 0;
+
+  const clearSearch = () => {
+    setSearch("");
+    searchRef.current?.blur();
+    setSearchActive(false);
+  };
 
   const FILTERS = [
     { key: "pending", label: "Pendientes" },
@@ -279,6 +307,49 @@ function TeacherView() {
           </TouchableOpacity>
         </View>
 
+        {/* Search bar */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Feather name="search" size={15} color="rgba(255,255,255,0.7)" />
+            <TextInput
+              ref={searchRef}
+              style={styles.searchInput}
+              placeholder="Buscar alumno..."
+              placeholderTextColor="rgba(255,255,255,0.5)"
+              value={search}
+              onChangeText={setSearch}
+              onFocus={() => setSearchActive(true)}
+              onBlur={() => setTimeout(() => setSearchActive(false), 150)}
+              autoCapitalize="words"
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="x-circle" size={15} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Autocomplete suggestions */}
+        {showSuggestions && (
+          <View style={[styles.suggestions, { backgroundColor: colors.card }]}>
+            {studentNames.slice(0, 5).map((name) => (
+              <TouchableOpacity
+                key={name}
+                style={[styles.suggestionItem, { borderBottomColor: colors.border }]}
+                onPress={() => { setSearch(name); setSearchActive(false); }}
+              >
+                <View style={[styles.suggestionAvatar, { backgroundColor: "#1B5E38" }]}>
+                  <Text style={styles.suggestionAvatarText}>{name[0]?.toUpperCase()}</Text>
+                </View>
+                <Text style={[styles.suggestionText, { color: colors.text }]}>{name}</Text>
+                <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Filter pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((f) => (
@@ -298,23 +369,54 @@ function TeacherView() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 90 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
+        {/* Search result label */}
+        {search.trim().length > 0 && (
+          <View style={[styles.searchResultBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="user" size={13} color="#1B5E38" />
+            <Text style={[styles.searchResultText, { color: colors.text }]}>
+              Mostrando obras de{" "}
+              <Text style={{ fontFamily: "Inter_700Bold", color: "#1B5E38" }}>
+                "{search.trim()}"
+              </Text>
+              {" "}— {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+            </Text>
+            <TouchableOpacity onPress={clearSearch}>
+              <Feather name="x" size={14} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {isLoading && (
           <View style={styles.center}>
             <ActivityIndicator size="large" color="#1B5E38" />
             <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Cargando obras...</Text>
           </View>
         )}
-        {!isLoading && (!obras || obras.length === 0) && (
+
+        {!isLoading && filtered.length === 0 && (
           <View style={styles.center}>
-            <Feather name="inbox" size={44} color={colors.mutedForeground} />
+            <Feather name={search.trim() ? "user-x" : "inbox"} size={44} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {filter === "pending" ? "No hay obras pendientes 🎉" : "Sin obras en esta categoría"}
+              {search.trim()
+                ? `No se encontró ningún alumno con "${search.trim()}"`
+                : filter === "pending"
+                ? "No hay obras pendientes 🎉"
+                : "Sin obras en esta categoría"}
             </Text>
+            {search.trim() ? (
+              <TouchableOpacity onPress={clearSearch}>
+                <Text style={{ color: "#1B5E38", fontFamily: "Inter_600SemiBold", fontSize: 14 }}>
+                  Limpiar búsqueda
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
+
         <View style={{ gap: 12 }}>
-          {obras?.map((obra) => (
+          {filtered.map((obra) => (
             <TeacherObraCard key={obra.id} obra={obra} onReviewed={() => refetch()} />
           ))}
         </View>
@@ -497,6 +599,63 @@ const styles = StyleSheet.create({
   filterRow: { flexDirection: "row", gap: 8, paddingBottom: 4 },
   filterPill: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   filterText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  searchRow: { marginBottom: 10 },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  searchInput: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    padding: 0,
+  },
+  suggestions: {
+    borderRadius: 12,
+    marginBottom: 8,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+  },
+  suggestionAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  suggestionAvatarText: { color: "#fff", fontSize: 12, fontFamily: "Inter_700Bold" },
+  suggestionText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  searchResultBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 4,
+  },
+  searchResultText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   center: { alignItems: "center", paddingVertical: 50, gap: 12 },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
