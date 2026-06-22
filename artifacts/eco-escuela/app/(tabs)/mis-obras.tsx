@@ -2,6 +2,8 @@ import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import { Image } from "expo-image";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -236,10 +238,165 @@ function TeacherView() {
   const topPad = isWeb ? 67 : insets.top;
   const bottomPad = isWeb ? 34 : insets.bottom;
 
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+
   const { data: obras, isLoading, refetch } = useListObras(
     { status: filter === "all" ? undefined : filter },
     { query: { staleTime: 10000, refetchInterval: 20000 } }
   );
+
+  // Fetch ALL obras (for PDF which always covers everything)
+  const { data: allObras } = useListObras(
+    {},
+    { query: { staleTime: 60000 } }
+  );
+
+  const generateSemesterReport = async () => {
+    if (!allObras || allObras.length === 0) {
+      Alert.alert("Sin datos", "No hay obras registradas para generar un informe.");
+      return;
+    }
+    setGeneratingPdf(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      // Group by student
+      const byStudent: Record<string, typeof allObras> = {};
+      for (const obra of allObras) {
+        if (!byStudent[obra.studentName]) byStudent[obra.studentName] = [];
+        byStudent[obra.studentName].push(obra);
+      }
+
+      const today = new Date().toLocaleDateString("es", {
+        year: "numeric", month: "long", day: "numeric",
+      });
+      const totalObras = allObras.length;
+      const totalApproved = allObras.filter((o) => o.status === "approved").length;
+      const totalHours = allObras
+        .filter((o) => o.status === "approved")
+        .reduce((s, o) => s + o.hours, 0);
+
+      const statusLabel: Record<string, string> = {
+        approved: "✅ Aprobada",
+        rejected: "❌ Rechazada",
+        pending: "⏳ Pendiente",
+      };
+      const statusColor: Record<string, string> = {
+        approved: "#2E7D32",
+        rejected: "#C62828",
+        pending: "#E65100",
+      };
+
+      const studentRows = Object.entries(byStudent)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, obrs]) => {
+          const approvedHrs = obrs.filter((o) => o.status === "approved").reduce((s, o) => s + o.hours, 0);
+          const pct = Math.min(Math.round((approvedHrs / GOAL_HOURS) * 100), 100);
+          const obraRows = obrs
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .map((o) => `
+              <tr>
+                <td>${o.title}</td>
+                <td>${o.category}</td>
+                <td style="text-align:center">${o.hours}h</td>
+                <td>${new Date(o.date).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</td>
+                <td style="color:${statusColor[o.status] ?? "#333"};font-weight:600">${statusLabel[o.status] ?? o.status}</td>
+                <td style="font-size:11px;color:#555">${o.teacherComment ?? "—"}</td>
+              </tr>`).join("");
+
+          return `
+            <div class="student-block">
+              <div class="student-header">
+                <div class="student-avatar">${name[0]?.toUpperCase()}</div>
+                <div>
+                  <div class="student-name">${name}</div>
+                  <div class="student-meta">${obrs.length} obras · ${approvedHrs}h aprobadas · ${pct}% de la meta</div>
+                </div>
+                <div class="progress-pill ${pct >= 100 ? "complete" : ""}">${pct}%</div>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" style="width:${pct}%"></div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Actividad</th><th>Tipo</th><th>Horas</th><th>Fecha</th><th>Estado</th><th>Comentario</th>
+                  </tr>
+                </thead>
+                <tbody>${obraRows}</tbody>
+              </table>
+            </div>`;
+        }).join("");
+
+      const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; font-size: 13px; }
+  .cover { background: #1B5E38; color: white; padding: 40px 36px 32px; }
+  .cover h1 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+  .cover h2 { font-size: 15px; font-weight: 400; opacity: 0.85; margin-bottom: 20px; }
+  .cover-stats { display: flex; gap: 20px; margin-top: 20px; }
+  .stat-box { background: rgba(255,255,255,0.15); border-radius: 10px; padding: 12px 20px; text-align: center; }
+  .stat-num { font-size: 28px; font-weight: 800; }
+  .stat-label { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  .meta { font-size: 11px; opacity: 0.7; margin-top: 16px; }
+  .content { padding: 28px 36px; }
+  .section-title { font-size: 11px; font-weight: 700; color: #1B5E38; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; border-bottom: 2px solid #1B5E38; padding-bottom: 6px; }
+  .student-block { margin-bottom: 28px; border: 1px solid #E0E0E0; border-radius: 10px; overflow: hidden; page-break-inside: avoid; }
+  .student-header { display: flex; align-items: center; gap: 12px; background: #F5F5F5; padding: 12px 16px; }
+  .student-avatar { width: 36px; height: 36px; border-radius: 18px; background: #1B5E38; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; flex-shrink: 0; }
+  .student-name { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+  .student-meta { font-size: 11px; color: #666; margin-top: 2px; }
+  .progress-pill { margin-left: auto; background: #1B5E38; color: white; border-radius: 20px; padding: 4px 12px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .progress-pill.complete { background: #4CAF50; }
+  .progress-bar-wrap { height: 6px; background: #E0E0E0; }
+  .progress-bar-fill { height: 100%; background: #4CAF50; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #FAFAFA; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #555; border-bottom: 1px solid #E0E0E0; }
+  td { padding: 8px 12px; border-bottom: 1px solid #F0F0F0; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .footer { text-align: center; color: #999; font-size: 11px; padding: 20px; border-top: 1px solid #E0E0E0; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="cover">
+  <h1>📋 Informe Semestral de Obras Ecológicas</h1>
+  <h2>Instituto Guillermo Ampie Lanzas</h2>
+  <div class="cover-stats">
+    <div class="stat-box"><div class="stat-num">${Object.keys(byStudent).length}</div><div class="stat-label">Alumnos</div></div>
+    <div class="stat-box"><div class="stat-num">${totalObras}</div><div class="stat-label">Obras registradas</div></div>
+    <div class="stat-box"><div class="stat-num">${totalApproved}</div><div class="stat-label">Aprobadas</div></div>
+    <div class="stat-box"><div class="stat-num">${totalHours}h</div><div class="stat-label">Horas aprobadas</div></div>
+  </div>
+  <div class="meta">Generado el ${today} · Meta por alumno: ${GOAL_HOURS} horas</div>
+</div>
+<div class="content">
+  <div class="section-title">Detalle por alumno</div>
+  ${studentRows}
+</div>
+<div class="footer">Eco Escuela App · Instituto Guillermo Ampie Lanzas · ${today}</div>
+</body>
+</html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Informe Semestral de Obras",
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        Alert.alert("PDF generado", `Guardado en: ${uri}`);
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo generar el PDF. Intenta de nuevo.");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
 
   // Notify once on mount if there are pending obras
   useEffect(() => {
@@ -293,10 +450,22 @@ function TeacherView() {
       {/* Header */}
       <View style={[styles.teacherHeader, { paddingTop: topPad + 16, backgroundColor: "#1B5E38" }]}>
         <View style={styles.teacherHeaderRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.teacherTitle}>Panel del Profesor</Text>
             <Text style={styles.teacherSub}>Revisión de obras ecológicas</Text>
           </View>
+          <TouchableOpacity
+            style={styles.pdfBtn}
+            onPress={generateSemesterReport}
+            disabled={generatingPdf}
+          >
+            {generatingPdf
+              ? <ActivityIndicator size="small" color="#1B5E38" />
+              : <Feather name="file-text" size={15} color="#1B5E38" />}
+            <Text style={styles.pdfBtnText}>
+              {generatingPdf ? "Generando..." : "Informe PDF"}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.logoutBtn} onPress={() => {
             Alert.alert("Cerrar sesión", "¿Salir del modo profesor?", [
               { text: "Cancelar", style: "cancel" },
@@ -596,6 +765,17 @@ const styles = StyleSheet.create({
   teacherTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
   teacherSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
   logoutBtn: { padding: 8 },
+  pdfBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 6,
+  },
+  pdfBtnText: { color: "#1B5E38", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   filterRow: { flexDirection: "row", gap: 8, paddingBottom: 4 },
   filterPill: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   filterText: { fontSize: 13, fontFamily: "Inter_500Medium" },
