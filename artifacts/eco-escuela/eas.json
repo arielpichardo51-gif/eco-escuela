@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "TU_URL_AQUI.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "eco-school-sync--secundarhh.replit.app"
       }
     },
     "production": {
@@ -18,7 +18,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "TU_URL_AQUI.replit.app"
+        "EXPO_PUBLIC_DOMAIN": "eco-school-sync--secundarhh.replit.app"
       }
     }
   }
